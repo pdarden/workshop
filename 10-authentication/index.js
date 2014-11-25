@@ -1,4 +1,3 @@
-
 var fs = require('fs');
 var koa = require('koa');
 var path = require('path');
@@ -34,7 +33,27 @@ app.use(function* home(next) {
 app.use(function* login(next) {
   if (this.request.path !== '/login') return yield* next;
   if (this.request.method === 'GET') return this.response.body = form.replace('{{csrf}}', this.csrf);
+  if (this.request.method === 'POST') {
+    var body = yield parse(this);
 
+    try {
+      this.assertCSRF(body)
+    } catch (err) {
+      this.status = 403
+      this.body = {
+        message: 'CSRF token is invalid'
+      }
+      return
+    }
+
+    if (body.username === 'username' && body.password === 'password') {
+      this.session.authenticated = true;
+      this.response.status = 303;
+      this.redirect('/');
+    } else {
+      this.status = 400;
+    }
+  }
 })
 
 /**
@@ -45,7 +64,9 @@ app.use(function* login(next) {
 
 app.use(function* logout(next) {
   if (this.request.path !== '/logout') return yield* next;
-
+  this.session.authenticated = false;
+  this.response.status = 303;
+  this.redirect('/login');
 })
 
 /**
